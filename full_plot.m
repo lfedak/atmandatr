@@ -1,9 +1,9 @@
 % Main plotting function
 % Author: Liz Fedak
 % Created: 10/13/19
-% Updated: 10/20/20
+% Updated: 2/01/20
 
-function full_plot(varargin)
+function full_plot_temp(varargin)
 % FULL_PLOT() Generates all plots in "What p53 sees: ATM and ATR activation
 % through crosstalk between DNA damage response pathways."
 % Takes two vectors as optional input.
@@ -12,10 +12,11 @@ function full_plot(varargin)
 % 1: Fig. 4
 % 2: Fig. 5
 % 3: Fig. 6
-% 4: Fig. S7
-% 5: Fig. S8
-% 6: Fig. S9
-% 7: Fig. S10
+% 4: Fig. S6B (the other plots in Fig. 6 use data published elsewhere)
+% 5: Fig. S7
+% 6: Fig. S8
+% 7: Fig. S9
+% 8: Fig. S10
 % This code does not include figures that rely on data sets from other
 % papers.
 %
@@ -60,18 +61,22 @@ function full_plot(varargin)
         end
         
         if ismember(4,fig_list) % If 4 is selected
-           figS7(ode, ic_fun, par, ATMi, ATRi) % Generate plots in Fig. S7
+           figS6B(ode, ic_fun, par, DSBi) % Generate plots in Fig. S6B
         end
         
         if ismember(5,fig_list) % If 5 is selected
-           figS8(ode, ic_fun, par, ATRi) % Generate plots in Fig. S8
+           figS7(ode, ic_fun, par, ATMi, ATRi) % Generate plots in Fig. S7
         end
         
         if ismember(6,fig_list) % If 6 is selected
-           figS9(ode, ic_fun, par, ATMi, ATRi) % Generate plots in Fig. S9
+           figS8(ode, ic_fun, par, ATRi) % Generate plots in Fig. S8
         end
         
         if ismember(7,fig_list) % If 7 is selected
+           figS9(ode, ic_fun, par, ATMi, ATRi) % Generate plots in Fig. S9
+        end
+        
+        if ismember(8,fig_list) % If 8 is selected
            figS10(ode, ic_fun, par, ATMi, ATRi) % Generate plots in Fig. S10
         end
         
@@ -111,7 +116,7 @@ switch n
         ATMi  = 16:21; % Indices for classes of ATM
         ATRi  = 22:27; % Indices for classes of ATR
     case 1
-        ode = @exp1_ODEs; % NOT FINISHED, NEED ODE
+        ode = @exp1_ODEs;
         ic_fun = @(s, D_IR, D_UV) [s_init(s, D_IR, D_UV) 0 0 0 0]; % four additional ODEs each with initial value 0
         DSBi  = [3:10 28:31]; % Indices for classes of DSB
         SSi   = [11:15 32]; % Indices for classes of ssDNA. Final equation is directly solvable.
@@ -260,6 +265,91 @@ function fig6(ode, ic_fun, par, ATMi, ATRi)
      dose_response(ode, ic_fun, par, 24, [0 20], 'J/m^2', ATMi, ATRi)
 end
 
+
+% ----- ATM SILENCING DSB REPAIR ----- %
+
+function figS6B(ode, ic_fun, par, DSBi)
+% Reynolds-2012-inspired plot of the effect of ATM silencing on the repair
+% of DSBs. Reynolds predicts that ATM silencing should only slow the repair
+% of complex DSBs, but they measure the cellular response to NIR, so
+% fitting directly to data is difficult. However, they do estimate the
+% half-life of quickly-repaired DSBs as 1.5, the half-life of complex DSBs
+% as 72 \pm 35 min in actively replicating cells and 120 \pm 32 min in
+% G1-arrested cells; with ATM inhibitor, repair is 3.5 times slower.
+
+    params
+    
+    tmax = 5; % Max time in hours
+    s = 0; % Outside of S phase
+    D_IR = 10; % IR damage induced, in Gy
+    D_UV = 0; % UV damage induced, in J/m^2
+    init = ic_fun(s, D_IR, D_UV); % generate initial conditions for above three parameters
+    par = [s_par(s, D_IR, D_UV) par]; % giving ICs for solvable state variables
+    %
+    % run ODE
+    [t1,y1] = ode45(ode, [0 tmax*60], init, [], par); % par 1, 2 actually ICs and have to be changed
+    PP = solvable_DEs(t1,par);
+    y1 = [y1, PP]; % Append solvable DEs onto the end of the solution
+    
+    par(end-1) = 0; % Knock out ATM
+    
+    [t2,y2] = ode45(ode, [0 tmax*60], init, [], par); % par 1, 2 actually ICs and have to be changed
+    PP = solvable_DEs(t2,par);
+    y2 = [y2, PP];
+    
+    % Plot fits vs. data.
+    figure
+     gcf;
+     
+     set(gcf,'DefaultAxesFontSize',17) % make font big everywhere
+     set(gcf, 'Position', [400, 400, 400, 400])
+     lw = 3; % Change line width.
+     
+     % Plot the curve representing decay with a half-life of 30 minutes or
+     % 107 minutes, plus error bars.
+     t=0:0.5:tmax*60; % Initialize time for 24 hours 
+     init_DSBs = sum(y1(1,DSBi),2); % Gets initial number of DSBs
+     % Reynolds 2012 reports the average half-life of DSBs in 
+     l1=init_DSBs*exp((log(1/2)/(30-14))*t); % Lower bound for WT error (30 +/- 14)
+     l =init_DSBs*exp((log(1/2)/30)*t); % WT avg
+     l2=init_DSBs*exp((log(1/2)/(30+14))*t); % Upper bound for WT error
+     
+     h1=init_DSBs*exp((log(1/2)/(107-18))*t); % Lower bound for ATM-deficient error (107 +/- 18)
+     h =init_DSBs*exp((log(1/2)/107)*t); % ATM-deficient avg
+     h2=init_DSBs*exp((log(1/2)/(107+18))*t); % Upper bound for ATM-deficient error
+     
+     T=[t,fliplr(t)]; % create continuous x value array for plotting
+     L=[l1,fliplr(l2)]; % create y values for out and then back
+     H=[h1,fliplr(h2)]; % create y values for out and then back
+     
+     lightred=[255,204,204]/255; % making the colors pretty
+     lightblue=[204,204,255]/255;
+     
+     % Plot WT
+     fill(T/60,L,lightblue, 'EdgeColor', lightblue); % WT error
+     hold on
+     plot(t/60,l,'b--','LineWidth', lw)% WT experimental
+     hold on
+     plot(t1/60, sum(y1(:,DSBi),2), 'b', 'LineWidth', lw) % WT model
+     hold on
+    
+     % Plot ATM-deficient
+     fill(T/60,H,lightred, 'EdgeColor', lightred); % ATM-deficient error
+     hold on
+     plot(t/60,h,'r--','LineWidth', lw)% ATM-deficient experimental
+     hold on
+     plot(t2/60, sum(y2(:,DSBi),2), 'r', 'LineWidth', lw) % ATM-deficient model
+        
+        
+        % title(['DSB repair with and without ATM silencing'])
+        legend('WT error range', 'WT experiment', 'WT model', 'ATMs error range', 'ATMs experiment', 'ATMs model')
+ %       ylim([0 1])
+        xlabel('Time (h)')
+        ylabel('Number of DSBs')
+
+
+end
+
 % ----- %
 
 function figS7(ode, ic_fun, par, ATMi, ATRi)
@@ -328,6 +418,8 @@ function figS10(ode, ic_fun, par, ATMi, ATRi)
 
 end
 
+
+
 %% HELPER FUNCTIONS %%
 
 function basic_plot(ode, init, par, dam, DSBi, PPi, ATMi, ATRi, tmax)
@@ -362,7 +454,7 @@ function basic_plot(ode, init, par, dam, DSBi, PPi, ATMi, ATRi, tmax)
         plot(t/60, sum(y(:,ATMi),2), 'col', colors(3,:), 'LineWidth', lw)
         hold on
         plot(t/60, sum(y(:,ATRi),2), 'col', colors(4,:), 'LineWidth', lw)
-        title(['Model response to ' dam ' radiation'])
+        % title(['Model response to ' dam ' radiation'])
         legend('DSBs', 'PPs', 'ATMp', 'ATRp')
         ylim([0 5000])
         xlim([0 tmax])
@@ -574,7 +666,7 @@ for i=0:s_tot-1 % do it in hours for now
     par_temp = [s_par(s, D_IR, D_UV) par];
     init_temp = ic_fun(s, D_IR, D_UV);
     [t,y] = ode45(ode, [0 total_cycle*60], init_temp, opts, par_temp);
-    PP = solvable_DEs(t,par); % Include solvable DEs
+    PP = solvable_DEs(t,par_temp); % Include solvable DEs
     y = [y, PP];
     p = plot(t/60, sum(y(:,j),2),'r','LineWidth', 3,'col', colors(i+1,:));
     hold on
@@ -589,14 +681,14 @@ for i=1:not_s_tot
     n = length(init_temp); % Needed to trim solvable quantities from ODE input
     % Pre-replication stage lasts for i hours
     [t1,y1] = ode45(ode, [0 i*60], init_temp, opts, par_temp);
-    PP = solvable_DEs(t1,par); % Include solvable DEs
+    PP = solvable_DEs(t1,par_temp); % Include solvable DEs
     y1 = [y1, PP];
     % When S phase starts, the initial condition is where the system is
     % after i hours.
     init_temp = y1(end,1:n);
     init_temp(1) = 3.3e9; % length of genome, set G0 to nonzero so that replication initiates
     [t2,y2] = ode45(ode, [i*60 total_cycle*60], init_temp, opts, par_temp);
-    PP = solvable_DEs(t2,par); % Include solvable DEs
+    PP = solvable_DEs(t2,par_temp); % Include solvable DEs
     y2 = [y2, PP];
     if i==1
         q = plot([t1; t2]/60,[sum(y1(:,j),2); sum(y2(:,j),2)],'k--','LineWidth', 3);
@@ -610,7 +702,7 @@ end
 
 hold off
 
-    title(plot_title)
+    % title(plot_title)
 
     xlabel('Time after damage exposure (h)')
     ylabel('Net protein activation/damage level')
@@ -672,13 +764,8 @@ end
 function par = s_par(s, D_IR, D_UV)
 % If damage is induced in the middle of S phase, correctly distribute the
 % initial conditions according to how much DNA has already been replicated.
-% D_IR or D_UV are only used the first time damage is induced. If S phase
-% starts later, these four parameters are overwritten.
 
-p_t      = 0.01; % hidden parameter representing percentage of actively transcribed genome
-
-% LMDS0      = D_IR*400*(1+s);
-PTR0     = D_UV*4500*p_t*2*s;
+PTR0     = D_UV*4500*2*s; %D_UV*4500*p_t*2*s;
 
 par  = PTR0;
 end
@@ -688,10 +775,7 @@ end
 function PP = solvable_DEs(t,par)
 % Generates directly solvable quantities
 
-    kDN = par(5);
-    kDT = par(6);
-    PNR = par(1)*exp(-kDN*t); % directly solvable
-    PTR = par(2)*exp(-kDT*t);
-    PP = PTR; % [PNR, PTR];
-end
+    kD = par(4);
+    PP = par(1)*exp(-kD*t); % directly solvable
 
+end

@@ -9,9 +9,9 @@
 
 rA       = 6; % Factor by which histone phosphorylation speeds binding rate of all proteins
 kNHEJ    = log(2)/20/rA; % NHEJ, DSBs have a half-life of 20 minutes
-kD       = 0.0015; % Detection rate of transcribed-strand CPDs. kDT > kDN
+kD       = 0.0015; % Detection rate of transcribed-strand CPDs.
 kSNHEJ   = log(2)/300/rA; % NHEJ requiring preprocessing. kSNHEJ < kNHEJ
-kPL      = 1e-8; % RPA-bound ssDNA breakage rate, low
+kPL      = 5e-8; % RPA-bound ssDNA breakage rate, low
 kMRN     = log(2)/200/rA; % MRN complex binding rate
 MRNs     = 2; % Factor by which MRN binding rate increases during S phase
 kBRCA    = log(2)/60/rA; % Rate of BRCA-mediated Rad51 outcompeting RPA
